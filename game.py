@@ -2,19 +2,18 @@ import random
 import numpy as np
 import pandas as pd
 
-sudoku_puzzles_df = pd.read_csv("sudoku-3m.csv", nrows=1000)
+sudoku_puzzles_df = pd.read_csv("sudoku-3m.csv", nrows=100000)
 
 def get_sudoku_game():
     sudoku_string = sudoku_puzzles_df.at[random.randint(0, 999), "puzzle"]
 
     sudoku_array = np.array(list(sudoku_string)).reshape((9,9))
-    print(sudoku_array)
 
     return sudoku_array.tolist()
 
 
 
-class SudokuGameAI():
+class SudokuGameAI:
     def __init__(self):
         self.board = None
         self.reset()
@@ -29,7 +28,20 @@ class SudokuGameAI():
                 return -100
             else:
                 return +100
+        elif is_bad_move:
+            return -10
         else:
+            for row in self.board:
+                unique_nums = set()
+                list_nums = []
+                for x in row:
+                    if x != ".":
+                        unique_nums.add(x)
+                        list_nums.append(x)
+
+                if len(unique_nums) != len(list_nums):
+                    return -10
+
             return 0
 
     def game_iteration(self):
@@ -66,15 +78,12 @@ class SudokuGameAI():
         else:
             return False
 
-    def is_over(self, is_bad_move):
-        if is_bad_move:
-            return True
-        else:
-            for i in range(9):
-                for j in range(9):
-                    if self.board[i][j] == ".":
-                        return False
-            return True
+    def is_over(self):
+        for i in range(9):
+            for j in range(9):
+                if self.board[i][j] == ".":
+                    return False
+        return True
 
 
     def play_step(self, action):
@@ -82,7 +91,7 @@ class SudokuGameAI():
         location_encoding = action[:7]
         number_encoding = action[7:]
 
-        position = int("".join(str(x) for x in location_encoding), 2)
+        position = min(int("".join(str(x) for x in location_encoding), 2), 80)
         row = position // 9
         col = position % 9
 
@@ -90,12 +99,12 @@ class SudokuGameAI():
 
         if self.board[row][col] == ".":
             self.board[row][col] = number
-            reward = self.reward_calculator(self, False)
-            return reward, self.is_over(False)
+            reward = self.reward_calculator(False)
+            return reward, self.is_over()
 
         else:
-            reward = self.reward_calculator(self, True)
-            return reward, self.is_over(True)
+            reward = self.reward_calculator(True)
+            return reward, self.is_over()
 
 
 if __name__ == "__main__":
