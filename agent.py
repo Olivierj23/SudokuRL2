@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 import random
 from collections import deque
@@ -95,7 +94,40 @@ class Agent:
 
 class SudokuDataset(Dataset):
     def __init__(self, train=True):
-        self.sudoku_dataframe = pd.read_csv("sudoku-3m.csv", nrows=100000)
+        self.sudoku_dataframe = pd.read_csv("sudoku.csv")
+
+
+    def __len__(self):
+        return len(self.sudoku_dataframe)
+    def __getitem__(self, idx):
+        puzzle = self.sudoku_dataframe.at[idx, "quizzes"]
+        solution = self.sudoku_dataframe.at[idx, "solutions"]
+        puzzle_list = []
+        solution_list = []
+        for i in range(len(puzzle)):
+            if puzzle[i] == ".":
+                puzzle_list.append(float(0))
+            else:
+                puzzle_list.append(float(puzzle[i]))
+
+            if solution[i] == ".":
+                solution_list.append(0)
+            else:
+                solution_list.append(int(solution[i]) - 1)
+
+
+        puzzle_array = np.array(puzzle_list, dtype=np.float32).reshape((9, 9))
+        solution_array = np.array(solution_list).reshape((9, 9))
+
+        puzzle_tensor = torch.from_numpy(puzzle_array)
+        solution_tensor = torch.from_numpy(solution_array).long()
+
+
+        return puzzle_tensor, solution_tensor
+
+class SudokuDataset2(Dataset):
+    def __init__(self, train=True):
+        self.sudoku_dataframe = pd.read_csv("sudoku-3m.csv")
 
 
     def __len__(self):
@@ -114,23 +146,14 @@ class SudokuDataset(Dataset):
             if solution[i] == ".":
                 solution_list.append(0)
             else:
-                solution_list.append(int(solution[i]))
+                solution_list.append(int(solution[i]) - 1)
 
 
-        puzzle_array = np.array(puzzle_list, dtype=float).reshape((9, 9))
+        puzzle_array = np.array(puzzle_list, dtype=np.float32).reshape((9, 9))
         solution_array = np.array(solution_list).reshape((9, 9))
-        solution_vector = []
-
-        for i in range(len(solution_array)):
-            for j in range(len(solution_array[0])):
-                if solution_array[i][j] == ".":
-                    solution_vector += [0, 0, 0, 0]
-                else:
-                    number_embedding = bin(int(solution_array[i][j]))[2:].zfill(4)
-                    solution_vector += [int(x) for x in number_embedding]
 
         puzzle_tensor = torch.from_numpy(puzzle_array)
-        solution_tensor = torch.tensor(solution_vector, dtype=torch.float)
+        solution_tensor = torch.from_numpy(solution_array).long()
 
 
         return puzzle_tensor, solution_tensor
@@ -190,24 +213,32 @@ def RL_train():
 def CNN_train():
     plt.ion()
     model = SudoCNN()
+    model.load_state_dict(torch.load("model_folder/model.pth"))
+    model.train()
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-    training_data = SudokuDataset()
-    train_dataloader = DataLoader(training_data, batch_size=10, shuffle=True)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)
+    training_data = SudokuDataset2()
+    train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True)
     plot_running_loss = []
-    for epoch in range(1000):  # loop over the dataset multiple times
+    print(torch.backends.cudnn.enabled)
+    print(torch.cuda.is_available())
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    print(device)
+    model.to(device)
+    for epoch in range(10):  # loop over the dataset multiple times
 
         running_loss = 0.0
         for i, data in enumerate(train_dataloader, 0):
             # get the inputs; data is a list of [inputs, labels]
-            puzzles, solutions = data
-            puzzles = torch.reshape(puzzles, (10, 1, 9, 9))
+            puzzles, solutions = data[0].to(device), data[1].to(device)
+            puzzles = torch.reshape(puzzles, (64, 1, 9, 9))
 
             # zero the parameter gradients
             optimizer.zero_grad()
 
             # forward + backward + optimize
             outputs = model(puzzles)
+
             loss = criterion(outputs, solutions)
             loss.backward()
             optimizer.step()
@@ -220,18 +251,33 @@ def CNN_train():
                 display.clear_output(wait=True)
                 display.display(plt.gcf())
                 plt.clf()
-                plt.plot(plot_running_loss) 
+                plt.plot(plot_running_loss)
+                plt.show()
                 running_loss = 0.0
+                model.save()
 
     print('Finished Training')
 
 
 
 if __name__ == "__main__":
-    # training_data = SudokuDataset()
-    # train_dataloader = DataLoader(training_data, batch_size=10, shuffle=True)
-    # puzzle, solution = next(iter(train_dataloader))
+    training_data = SudokuDataset  ()
+    train_dataloader = DataLoader(training_data, batch_size=1, shuffle=True)
+    puzzle, solution = next(iter(train_dataloader))
     # print(puzzle)
     # print(solution.shape)
-    CNN_train()
+
+    # CNN_train()
+    print(puzzle)
+    print(solution)
+    puzzle = torch.reshape(puzzle, (1, 1, 9, 9))
+    model = SudoCNN()
+    model.load_state_dict(torch.load("model_folder/model.pth"))
+    model.eval()
+    criterion = nn.CrossEntropyLoss()
+    with torch.no_grad():
+        out_data = model(puzzle)
+        print(torch.argmax(out_data, dim=1))
+        print(criterion(out_data, solution))
+
 

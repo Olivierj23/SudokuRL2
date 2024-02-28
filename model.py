@@ -27,16 +27,91 @@ class SudoCNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(1, 81, 3, stride=3, dtype=float)
-        self.linear1 = nn.Linear(729, 1024, dtype=float)
-        self.linear2 = nn.Linear(1024, 324, dtype=float)
+        self.linear1 = nn.Linear(729, 4096, dtype=float)
+        self.linear2 = nn.Linear(4096, 324, dtype=float)
+        self.norm1 = nn.LayerNorm((729,), dtype=float)
+        ka = 3 // 2
+        kb = ka - 1 if 3 % 2 == 0 else ka
+        padding_layer = torch.nn.ReflectionPad2d
+        self.conv_layers = nn.Sequential(padding_layer((ka,kb,ka,kb)),
+                                         nn.Conv2d(1, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True),
+                                         padding_layer((ka, kb, ka, kb)),
+                                         nn.Conv2d(512, 512, 3),
+                                         nn.BatchNorm2d(512),
+                                         nn.ReLU(True))
+
+
+        self.last_conv = nn.Conv2d(512, 9, 1)
 
     def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = torch.reshape(x, (10, 729))
-        x = F.relu(self.linear1(x))
-        x = F.relu(self.linear2(x))
+        x = torch.sub(torch.divide(x, 9), 0.5)
+        x = self.conv_layers(x)
+        x = self.last_conv(x)
+
 
         return x
+
+    def save(self, file_name='model.pth'):
+        model_folder_path = "./model_folder"
+        if not os.path.exists(model_folder_path):
+            os.makedirs(model_folder_path)
+
+        file_name = os.path.join(model_folder_path, file_name)
+        torch.save(self.state_dict(), file_name)
 
 
 class QTrainer:
